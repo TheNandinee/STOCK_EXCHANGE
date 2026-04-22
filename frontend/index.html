@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stock Exchange v2.0</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  body { background: #0a0e1a; color: #e2e8f0; font-family: 'Segoe UI', sans-serif; }
+  .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; }
+  .green { color: #10b981; } .red { color: #ef4444; } .gold { color: #f59e0b; }
+  .badge-buy  { background:#064e3b; color:#10b981; padding:2px 8px; border-radius:4px; font-size:11px; }
+  .badge-sell { background:#450a0a; color:#ef4444; padding:2px 8px; border-radius:4px; font-size:11px; }
+  .tab { cursor:pointer; padding:8px 20px; border-radius:8px; transition:all .2s; }
+  .tab.active { background:#1d4ed8; color:white; }
+  .tab:not(.active) { color:#6b7280; }
+  .tab:not(.active):hover { color:#e2e8f0; }
+  input, select { background:#1f2937; border:1px solid #374151; border-radius:8px;
+                  padding:8px 12px; color:#e2e8f0; width:100%; outline:none; }
+  input:focus, select:focus { border-color:#3b82f6; }
+  .btn { padding:10px 20px; border-radius:8px; font-weight:600; cursor:pointer;
+         border:none; transition:all .2s; }
+  .btn-blue  { background:#1d4ed8; color:white; }
+  .btn-blue:hover  { background:#2563eb; }
+  .btn-green { background:#065f46; color:#10b981; }
+  .btn-green:hover { background:#047857; }
+  .btn-red   { background:#450a0a; color:#ef4444; }
+  .btn-red:hover   { background:#7f1d1d; }
+  .ticker-row:hover { background:#1f2937; cursor:pointer; }
+  ::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-thumb { background:#374151; border-radius:2px; }
+  .pulse { animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  #toast { position:fixed; bottom:24px; right:24px; padding:12px 20px; border-radius:8px;
+           font-weight:600; z-index:999; display:none; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- HEADER -->
+<div class="flex items-center justify-between px-8 py-4 border-b border-gray-800">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold">S</div>
+    <span class="text-xl font-bold">StockExchange <span class="text-blue-400">v2.0</span></span>
+  </div>
+  <div class="flex items-center gap-4">
+    <div class="flex items-center gap-2 text-sm">
+      <div class="w-2 h-2 rounded-full bg-green-400 pulse"></div>
+      <span class="text-gray-400">Live</span>
+    </div>
+    <select id="userSelect" class="text-sm" style="width:160px" onchange="switchUser()">
+      <option value="1">alice_trader</option>
+      <option value="2">bob_investor</option>
+      <option value="3">charlie_bull</option>
+      <option value="4">diana_quant</option>
+      <option value="5">eve_scalper</option>
+    </select>
+    <div class="card px-4 py-2 text-sm">
+      💰 <span id="walletBal" class="font-bold text-green-400">₹1,00,000</span>
+    </div>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="flex gap-2 px-8 py-4 border-b border-gray-800">
+  <div class="tab active" onclick="showTab('market')">📈 Market</div>
+  <div class="tab" onclick="showTab('portfolio')">💼 Portfolio</div>
+  <div class="tab" onclick="showTab('trade')">⚡ Trade</div>
+  <div class="tab" onclick="showTab('analytics')">📊 Analytics</div>
+  <div class="tab" onclick="showTab('audit')">🔍 Audit Log</div>
+</div>
+
+<div class="px-8 py-6">
+
+<!-- ── MARKET TAB ────────────────────────────────── -->
+<div id="tab-market">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-lg font-bold">Live Market</h2>
+    <button class="btn btn-blue text-sm" onclick="simulateTick()">⚡ Simulate Price Tick</button>
+  </div>
+  <div class="card overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-800 text-gray-400 text-xs uppercase">
+          <th class="px-4 py-3 text-left">Ticker</th>
+          <th class="px-4 py-3 text-left">Company</th>
+          <th class="px-4 py-3 text-left">Sector</th>
+          <th class="px-4 py-3 text-right">Price</th>
+          <th class="px-4 py-3 text-right">Change %</th>
+          <th class="px-4 py-3 text-center">Action</th>
+        </tr>
+      </thead>
+      <tbody id="stockTable"></tbody>
+    </table>
+  </div>
+
+  <div class="grid grid-cols-4 gap-4 mt-6" id="sectorCards"></div>
+</div>
+
+<!-- ── PORTFOLIO TAB ─────────────────────────────── -->
+<div id="tab-portfolio" class="hidden">
+  <h2 class="text-lg font-bold mb-4">My Portfolio</h2>
+  <div class="grid grid-cols-3 gap-4 mb-6" id="portfolioStats"></div>
+  <div class="card overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-800 text-gray-400 text-xs uppercase">
+          <th class="px-4 py-3 text-left">Ticker</th>
+          <th class="px-4 py-3 text-right">Qty</th>
+          <th class="px-4 py-3 text-right">Avg Buy</th>
+          <th class="px-4 py-3 text-right">Current</th>
+          <th class="px-4 py-3 text-right">P&L</th>
+          <th class="px-4 py-3 text-right">P&L %</th>
+          <th class="px-4 py-3 text-right">Value</th>
+        </tr>
+      </thead>
+      <tbody id="portfolioTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── TRADE TAB ─────────────────────────────────── -->
+<div id="tab-trade" class="hidden">
+  <div class="grid grid-cols-2 gap-8">
+    <div>
+      <h2 class="text-lg font-bold mb-4">Execute Trade</h2>
+      <div class="card p-6 space-y-4">
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Stock</label>
+          <select id="tradeStock"></select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Order Type</label>
+          <select id="tradeMode" onchange="toggleLimitFields()">
+            <option value="MARKET">Market Order</option>
+            <option value="LIMIT">Limit Order</option>
+            <option value="STOP_LOSS">Stop-Loss Order</option>
+          </select>
+        </div>
+        <div>
+          <label class="text-xs text-gray-400 mb-1 block">Quantity</label>
+          <input type="number" id="tradeQty" placeholder="e.g. 10" min="1">
+        </div>
+        <div id="limitPriceDiv" class="hidden">
+          <label class="text-xs text-gray-400 mb-1 block">Limit Price (₹)</label>
+          <input type="number" id="limitPrice" placeholder="e.g. 3500">
+        </div>
+        <div id="stopPriceDiv" class="hidden">
+          <label class="text-xs text-gray-400 mb-1 block">Stop Price (₹)</label>
+          <input type="number" id="stopPrice" placeholder="e.g. 3400">
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button class="btn btn-green flex-1" onclick="placeOrder('BUY')">▲ BUY</button>
+          <button class="btn btn-red flex-1" onclick="placeOrder('SELL')">▼ SELL</button>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h2 class="text-lg font-bold mb-4">My Orders</h2>
+      <div class="card overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-800 text-gray-400 text-xs uppercase">
+              <th class="px-3 py-3 text-left">Ticker</th>
+              <th class="px-3 py-3 text-left">Type</th>
+              <th class="px-3 py-3 text-right">Qty</th>
+              <th class="px-3 py-3 text-left">Status</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── ANALYTICS TAB ─────────────────────────────── -->
+<div id="tab-analytics" class="hidden">
+  <div class="grid grid-cols-2 gap-8">
+    <div>
+      <h2 class="text-lg font-bold mb-4">🏆 Live Leaderboard</h2>
+      <div class="card overflow-hidden">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-800 text-gray-400 text-xs uppercase">
+              <th class="px-4 py-3 text-left">Rank</th>
+              <th class="px-4 py-3 text-left">Trader</th>
+              <th class="px-4 py-3 text-right">Total Value</th>
+              <th class="px-4 py-3 text-right">Net P&L</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboardTable"></tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h2 class="text-lg font-bold mb-4">📉 Price Chart</h2>
+      <div class="card p-4">
+        <select id="chartStock" class="mb-3 text-sm" style="width:200px" onchange="loadChart()"></select>
+        <canvas id="priceChart" height="180"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── AUDIT TAB ─────────────────────────────────── -->
+<div id="tab-audit" class="hidden">
+  <h2 class="text-lg font-bold mb-4">🔍 Audit Log</h2>
+  <div class="card overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-gray-800 text-gray-400 text-xs uppercase">
+          <th class="px-4 py-3 text-left">Time</th>
+          <th class="px-4 py-3 text-left">User</th>
+          <th class="px-4 py-3 text-left">Action</th>
+          <th class="px-4 py-3 text-left">Old</th>
+          <th class="px-4 py-3 text-left">New</th>
+        </tr>
+      </thead>
+      <tbody id="auditTable"></tbody>
+    </table>
+  </div>
+</div>
+
+</div><!-- end px-8 -->
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+const API = "http://127.0.0.1:8000";
+let currentUser = 1;
+let allStocks = [];
+let priceChart = null;
+
+function toast(msg, ok=true) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.background = ok ? "#065f46" : "#450a0a";
+  t.style.color = ok ? "#10b981" : "#ef4444";
+  t.style.display = "block";
+  setTimeout(() => t.style.display="none", 3000);
+}
+
+function fmt(n) { return "₹" + parseFloat(n).toLocaleString("en-IN", {minimumFractionDigits:2}); }
+function pct(n)  { const v=parseFloat(n); return (v>=0?"▲ +":"▼ ")+v.toFixed(2)+"%" }
+
+async function api(path, method="GET", body=null) {
+  const opts = { method, headers:{"Content-Type":"application/json"} };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API+path, opts);
+  return r.json();
+}
+
+function showTab(name) {
+  ["market","portfolio","trade","analytics","audit"].forEach(t => {
+    document.getElementById("tab-"+t).classList.add("hidden");
+  });
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.getElementById("tab-"+name).classList.remove("hidden");
+  event.target.classList.add("active");
+  if (name==="market")    loadMarket();
+  if (name==="portfolio") loadPortfolio();
+  if (name==="trade")     loadTrade();
+  if (name==="analytics") { loadLeaderboard(); loadChartStocks(); }
+  if (name==="audit")     loadAudit();
+}
+
+function switchUser() {
+  currentUser = parseInt(document.getElementById("userSelect").value);
+  loadWallet();
+}
+
+async function loadWallet() {
+  const u = await api("/users/"+currentUser);
+  document.getElementById("walletBal").textContent = fmt(u.wallet_balance);
+}
+
+async function loadMarket() {
+  allStocks = await api("/stocks/");
+  const tbody = document.getElementById("stockTable");
+  tbody.innerHTML = allStocks.map(s => {
+    const chg = parseFloat(s.change_pct||0);
+    const cls = chg>=0?"green":"red";
+    return `<tr class="ticker-row border-b border-gray-800">
+      <td class="px-4 py-3 font-bold">${s.ticker}</td>
+      <td class="px-4 py-3 text-gray-300">${s.company_name}</td>
+      <td class="px-4 py-3 text-gray-400 text-xs">${s.sector_name||"-"}</td>
+      <td class="px-4 py-3 text-right font-mono font-bold">${fmt(s.current_price)}</td>
+      <td class="px-4 py-3 text-right ${cls}">${pct(chg)}</td>
+      <td class="px-4 py-3 text-center">
+        <button class="btn btn-green text-xs mr-1" onclick="quickBuy(${s.stock_id})">Buy</button>
+        <button class="btn btn-red text-xs"        onclick="quickSell(${s.stock_id})">Sell</button>
+      </td>
+    </tr>`;
+  }).join("");
+
+  const sectors = await api("/stocks/market/overview");
+  document.getElementById("sectorCards").innerHTML = sectors.map(s => `
+    <div class="card p-4">
+      <div class="text-xs text-gray-400 mb-1">${s.sector_name}</div>
+      <div class="font-bold">${fmt(s.avg_price)}</div>
+      <div class="text-xs mt-1 ${parseFloat(s.avg_change_pct)>=0?'green':'red'}">${pct(s.avg_change_pct||0)}</div>
+      <div class="text-xs text-gray-500 mt-1">📈${s.gainers} 📉${s.losers}</div>
+    </div>`).join("");
+}
+
+async function loadPortfolio() {
+  const holdings = await api("/users/"+currentUser+"/portfolio");
+  const user = await api("/users/"+currentUser);
+  let totalValue=0, totalPnl=0;
+  holdings.forEach(h => { totalValue+=parseFloat(h.current_value||0); totalPnl+=parseFloat(h.unrealized_pnl||0); });
+  document.getElementById("portfolioStats").innerHTML = `
+    <div class="card p-4"><div class="text-xs text-gray-400">Cash</div><div class="font-bold text-green-400 text-lg">${fmt(user.wallet_balance)}</div></div>
+    <div class="card p-4"><div class="text-xs text-gray-400">Stock Value</div><div class="font-bold text-blue-400 text-lg">${fmt(totalValue)}</div></div>
+    <div class="card p-4"><div class="text-xs text-gray-400">Unrealized P&L</div><div class="font-bold text-lg ${totalPnl>=0?'green':'red'}">${fmt(totalPnl)}</div></div>`;
+  document.getElementById("portfolioTable").innerHTML = holdings.length ? holdings.map(h => {
+    const pnl=parseFloat(h.unrealized_pnl||0);
+    return `<tr class="border-b border-gray-800">
+      <td class="px-4 py-3 font-bold">${h.ticker}</td>
+      <td class="px-4 py-3 text-right">${h.quantity}</td>
+      <td class="px-4 py-3 text-right font-mono">${fmt(h.avg_buy_price)}</td>
+      <td class="px-4 py-3 text-right font-mono">${fmt(h.current_price)}</td>
+      <td class="px-4 py-3 text-right ${pnl>=0?'green':'red'}">${fmt(pnl)}</td>
+      <td class="px-4 py-3 text-right ${pnl>=0?'green':'red'}">${pct(h.pnl_pct||0)}</td>
+      <td class="px-4 py-3 text-right font-mono">${fmt(h.current_value)}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">No holdings yet. Go buy something!</td></tr>`;
+}
+
+async function loadTrade() {
+  if (!allStocks.length) allStocks = await api("/stocks/");
+  const sel = document.getElementById("tradeStock");
+  sel.innerHTML = allStocks.map(s => `<option value="${s.stock_id}">${s.ticker} — ${fmt(s.current_price)}</option>`).join("");
+  loadOrders();
+}
+
+async function loadOrders() {
+  const orders = await api("/users/"+currentUser+"/orders");
+  document.getElementById("ordersTable").innerHTML = orders.slice(0,10).map(o => {
+    const sc = o.status==="EXECUTED"?"green":o.status==="PENDING"?"gold":"red";
+    return `<tr class="border-b border-gray-800">
+      <td class="px-3 py-2 font-bold">${o.ticker}</td>
+      <td class="px-3 py-2"><span class="badge-${o.order_type.toLowerCase()}">${o.order_type}</span></td>
+      <td class="px-3 py-2 text-right">${o.quantity}</td>
+      <td class="px-3 py-2 ${sc}">${o.status}</td>
+    </tr>`;
+  }).join("") || `<tr><td colspan="4" class="px-3 py-6 text-center text-gray-500">No orders yet</td></tr>`;
+}
+
+function toggleLimitFields() {
+  const mode = document.getElementById("tradeMode").value;
+  document.getElementById("limitPriceDiv").classList.toggle("hidden", mode!=="LIMIT");
+  document.getElementById("stopPriceDiv").classList.toggle("hidden",  mode!=="STOP_LOSS");
+}
+
+async function placeOrder(side) {
+  const stockId = parseInt(document.getElementById("tradeStock").value);
+  const qty = parseInt(document.getElementById("tradeQty").value);
+  const mode = document.getElementById("tradeMode").value;
+  if (!qty || qty<1) { toast("Enter a valid quantity", false); return; }
+
+  let result;
+  if (mode==="MARKET") {
+    result = await api("/trade/market", "POST", {user_id:currentUser, stock_id:stockId, order_type:side, quantity:qty});
+  } else {
+    const lp = parseFloat(document.getElementById("limitPrice").value)||null;
+    const sp = parseFloat(document.getElementById("stopPrice").value)||null;
+    result = await api("/trade/limit", "POST", {user_id:currentUser, stock_id:stockId, order_type:side, order_mode:mode, quantity:qty, limit_price:lp, stop_price:sp});
+  }
+  if (result.message) { toast(result.message); loadWallet(); loadOrders(); }
+  else toast(result.detail||"Error", false);
+}
+
+async function quickBuy(stockId)  { await api("/trade/market","POST",{user_id:currentUser,stock_id:stockId,order_type:"BUY",quantity:1}); toast("Bought 1 share"); loadWallet(); }
+async function quickSell(stockId) { const r=await api("/trade/market","POST",{user_id:currentUser,stock_id:stockId,order_type:"SELL",quantity:1}); r.message?toast("Sold 1 share"):toast(r.detail||"Error",false); loadWallet(); }
+
+async function simulateTick() {
+  await api("/stocks/simulate-tick","POST");
+  toast("Price tick simulated ⚡");
+  loadMarket();
+}
+
+async function loadLeaderboard() {
+  const rows = await api("/analytics/leaderboard");
+  document.getElementById("leaderboardTable").innerHTML = rows.map(r => {
+    const pnl=parseFloat(r.net_pnl||0);
+    const medal = r.rank===1?"🥇":r.rank===2?"🥈":r.rank===3?"🥉":"  ";
+    return `<tr class="border-b border-gray-800">
+      <td class="px-4 py-3">${medal} ${r.rank}</td>
+      <td class="px-4 py-3 font-bold">${r.username}</td>
+      <td class="px-4 py-3 text-right font-mono">${fmt(r.total_value)}</td>
+      <td class="px-4 py-3 text-right ${pnl>=0?'green':'red'}">${fmt(pnl)}</td>
+    </tr>`;
+  }).join("");
+}
+
+async function loadChartStocks() {
+  if (!allStocks.length) allStocks = await api("/stocks/");
+  const sel = document.getElementById("chartStock");
+  sel.innerHTML = allStocks.map(s=>`<option value="${s.stock_id}">${s.ticker}</option>`).join("");
+  loadChart();
+}
+
+async function loadChart() {
+  const sid = document.getElementById("chartStock").value;
+  const data = await api("/stocks/"+sid+"/history?limit=20");
+  const labels = data.map(d=>new Date(d.recorded_at).toLocaleTimeString()).reverse();
+  const prices = data.map(d=>parseFloat(d.close_price)).reverse();
+  if (priceChart) priceChart.destroy();
+  priceChart = new Chart(document.getElementById("priceChart"), {
+    type:"line",
+    data:{ labels, datasets:[{ label:"Price", data:prices,
+      borderColor:"#3b82f6", backgroundColor:"rgba(59,130,246,0.1)",
+      tension:0.4, fill:true, pointRadius:3 }] },
+    options:{ plugins:{legend:{display:false}},
+      scales:{ x:{ticks:{color:"#6b7280",font:{size:10}}},
+               y:{ticks:{color:"#6b7280"}} } }
+  });
+}
+
+async function loadAudit() {
+  const logs = await api("/analytics/audit-log?limit=50");
+  const actionColor = { TRADE_EXECUTED:"text-blue-400", STOP_LOSS_TRIGGERED:"text-yellow-400",
+                        PRICE_UPDATED:"text-gray-400", ORDER_CANCELLED:"text-red-400" };
+  document.getElementById("auditTable").innerHTML = logs.map(l => `
+    <tr class="border-b border-gray-800 text-xs">
+      <td class="px-4 py-2 text-gray-400">${new Date(l.logged_at).toLocaleTimeString()}</td>
+      <td class="px-4 py-2 text-gray-300">${l.username||"system"}</td>
+      <td class="px-4 py-2 ${actionColor[l.action]||'text-gray-300'} font-mono">${l.action}</td>
+      <td class="px-4 py-2 text-gray-500">${l.old_value||"-"}</td>
+      <td class="px-4 py-2 text-gray-300">${l.new_value||"-"}</td>
+    </tr>`).join("");
+}
+
+// Auto-refresh prices every 8 seconds
+setInterval(() => { loadMarket(); loadWallet(); }, 8000);
+
+// Init
+loadMarket();
+loadWallet();
+</script>
+</body>
+</html>
