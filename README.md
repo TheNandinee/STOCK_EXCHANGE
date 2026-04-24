@@ -1,4 +1,4 @@
-# Stock Exchange Simulator v2.0
+# Stock Exchange Simulator
 
 > A production-grade stock market simulation platform built as a DBMS flagship project.  
 > Real triggers. Real stored procedures. Real-time price simulation. Full trading engine.
