@@ -22,7 +22,7 @@ This simulator has a **full trading engine** — triggers that auto-fire stop-lo
 
 | Layer | What's inside |
 |---|---|
-| **Database** | 12 tables, 3NF normalized, indexed for time-series queries |
+| **Database** | 12 tables, indexed for time-series queries |
 | **Triggers** | 5 triggers — stop-loss auto-execution, wallet guard, sell validation, portfolio sync, audit logging |
 | **Stored Procedures** | 5 procedures — market trade engine, limit order placement, price tick simulator, leaderboard refresh, order cancellation |
 | **Views** | 4 views — live portfolio P&L, real-time leaderboard, sector market overview, 7-day rolling volatility |
